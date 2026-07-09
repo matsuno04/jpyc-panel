@@ -6,3 +6,5 @@ address,label,category
 0x0000000000000000000000000000000000000000,zero address (mint/burn),exclude
 0x8549e82239a88f463ab6e55ad1895b629a00def3,JPYC issuer/treasury on Kaia (mint受領→ユーザーへ配布、KaiaScanでAccountKeyLegacy・ラベル無し・要目視確認済み),exclude
 0x24dde1c83adfbf5abd6a61775ecb65eae8da8da7,Kaia上の大口集約スマートコントラクト(Unifi関連の疑いあり・ノンカストディアルなら実ユーザー資産の可能性・除外は保留中),watch
+0x11f14c2bfe398379b361019aa440f792c27f9384,初回ミント中継アドレス(ethereum/polygon/avalancheで初回ミント1億JPYCを受領後、即0x8549e822...へ全額転送。現在残高0),exclude
+0xB808AF91bDc577BFb3f9c91470f3286dd076e5C1,JPYC Redeem(EtherscanのPublic Name Tagで確認済み。償還専用コントラクト。4チェーンで多額の残高),exclude
