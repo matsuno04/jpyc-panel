@@ -22,6 +22,9 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Install Japanese font (for chart labels)
+        run: sudo apt-get update && sudo apt-get install -y fonts-ipafont-gothic
+
       - name: Collect transfer events (all chains)
         env:
           ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}

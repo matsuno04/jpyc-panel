@@ -94,16 +94,11 @@ def build_summary(panel):
             return None
         return float((last[col] - pv) / pv)
 
-    mint_days = panel[panel["mint_count"] > 0]
-
     return {
         "date": str(last["date"]),
         "circulating_supply": float(last["circulating_supply"]),
         "circulating_supply_wow_pct": wow_pct("circulating_supply"),
         "cumulative_mint_volume": float(panel["mint_volume"].sum()),
-        "cumulative_mint_count": int(panel["mint_count"].sum()),
-        "first_mint_date": str(mint_days["date"].min()) if len(mint_days) else None,
-        "last_mint_date": str(mint_days["date"].max()) if len(mint_days) else None,
         "holders_gt0": int(last["holders_gt0"]),
         "holders_gt0_wow_pct": wow_pct("holders_gt0"),
         "holders_ge100": int(last.get("holders_ge100", 0)),
@@ -144,6 +139,10 @@ def build(scope_name, ev, decimals, exclude, reviewed=frozenset()):
 
         n_mint = n_burn = 0
         v_mint = v_burn = v_p2p = 0
+        # p2p_volumeの内訳(運営ウォレット=exclude登録アドレスとの関係で4分類)
+        # 発行=運営→一般、償還=一般→運営、internal=運営↔運営、取引=一般↔一般(純粋なP2P)
+        n_issuance = n_redemption = n_internal = n_transfer = 0
+        v_issuance = v_redemption = v_internal = v_transfer = 0
         senders = set(); receivers = set()
 
         for frm, to, vr in zip(day["from"].values, day["to"].values,
@@ -181,6 +180,16 @@ def build(scope_name, ev, decimals, exclude, reviewed=frozenset()):
                 did_burn.add(frm)
             else:
                 v_p2p += v
+                frm_op = frm in exclude
+                to_op = to in exclude
+                if frm_op and to_op:
+                    n_internal += 1; v_internal += v
+                elif frm_op and not to_op:
+                    n_issuance += 1; v_issuance += v
+                elif to_op and not frm_op:
+                    n_redemption += 1; v_redemption += v
+                else:
+                    n_transfer += 1; v_transfer += v
 
         # --- 当日の遷移(new / zeroed / resurrected) ---
         new_a = zeroed_a = resurrected_a = 0
@@ -212,6 +221,10 @@ def build(scope_name, ev, decimals, exclude, reviewed=frozenset()):
             "mint_count": n_mint, "burn_count": n_burn,
             "mint_volume": v_mint / unit, "burn_volume": v_burn / unit,
             "p2p_volume": v_p2p / unit,
+            "issuance_count": n_issuance, "issuance_volume": v_issuance / unit,
+            "redemption_count": n_redemption, "redemption_volume": v_redemption / unit,
+            "internal_count": n_internal, "internal_volume": v_internal / unit,
+            "transfer_count": n_transfer, "transfer_volume": v_transfer / unit,
             "unique_senders": len(senders),
             "unique_receivers": len(receivers),
             "active_addresses": len(senders | receivers),
@@ -327,6 +340,16 @@ def build(scope_name, ev, decimals, exclude, reviewed=frozenset()):
     if neg > 0:
         print(f"[{scope_name}] [WARN] 負残高アドレス {neg} 件 — Transferイベントの取得漏れの疑い。"
               f" checkpointを削除して collector.py を再実行することを推奨。")
+
+    # --- 未確認のミント受取アドレス警告 ---
+    # ミントを受け取ったことのあるアドレスは運営(発行体)側である可能性が高い。
+    # known_addresses.csv に未登録のものが残っていると、流通量計算に紛れ込む恐れがある。
+    unreviewed_mint = sorted(a for a in got_mint if a not in reviewed)
+    if unreviewed_mint:
+        print(f"[{scope_name}] [WARN] 未確認のミント受取アドレスが {len(unreviewed_mint)} 件あります: "
+              f"{', '.join(unreviewed_mint)}")
+        print(f"[{scope_name}]        → block explorerで確認し、運営/取引所等であれば"
+              f"known_addresses.csv に追記してください(flag_candidates_{scope_name}.csvにも掲載)。")
 
     print(f"[{scope_name}] panel: {len(panel)}日  addresses: {len(master):,}  "
           f"holders(latest): {panel['holders_gt0'].iloc[-1]:,}")

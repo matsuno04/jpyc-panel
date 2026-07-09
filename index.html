@@ -72,7 +72,8 @@
     width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--border);
     background: #fff;
   }
-  figcaption { margin-top: .5rem; font-size: .85rem; color: var(--muted); }
+  figcaption { margin-top: .5rem; font-size: .85rem; color: var(--fg); font-weight: 600; }
+  figcaption .explain { display: block; margin-top: .2rem; font-size: .82rem; font-weight: 400; color: var(--muted); }
   .missing {
     padding: 2rem; text-align: center; color: var(--muted);
     border: 1px dashed var(--border); border-radius: 10px;
@@ -141,8 +142,10 @@
   <section class="glossary">
     <h2>用語の説明</h2>
     <dl>
-      <dt>ミント(mint)</dt><dd>新しくJPYCが発行されること。取引所などでJPYCを購入すると発行されます。</dd>
-      <dt>バーン(burn)</dt><dd>JPYCが償還されて消えること。JPYCを円に戻す(換金する)と発生します。</dd>
+      <dt>ミント(mint)</dt><dd>プロトコル上で新しくJPYCが生成されること。運営(JPYC社)がまとめて発行し、自社ウォレットで保有します。</dd>
+      <dt>バーン(burn)</dt><dd>プロトコル上でJPYCが消滅すること。</dd>
+      <dt>発行(このサイトでの用法)</dt><dd>運営ウォレットから一般ユーザーへ実際に配られた金額。ミントされてもすぐ配られるとは限らないため、ミントとは別に集計しています。</dd>
+      <dt>償還(このサイトでの用法)</dt><dd>一般ユーザーから運営ウォレットへ戻った金額。プロトコル上のバーンとは別に、運営が回収した時点を集計しています。</dd>
       <dt>ホルダー</dt><dd>そのアドレス(ウォレット、銀行口座のようなもの)にJPYCを持っている人・アドレスの数。</dd>
       <dt>ダスト</dt><dd>ごく少額の残高のこと。閾値以上を持つ人だけを数えることで「実質的な利用者数」を見ます。</dd>
       <dt>流通量</dt><dd>今実際に出回っているJPYCの総量(発行量 − 償還量)。</dd>
@@ -160,19 +163,31 @@
 
 <script>
 const OUT = "output";
-const TREND_CHART = ["01_holders_dust_sensitivity.png", "ホルダー数(ダスト閾値別)の推移"];
+const TREND_CHART = ["01_holders_dust_sensitivity.png", "保有者数の推移(残高閾値別)",
+  "ごく少額(ダスト)を除いた実質的な保有者数の変化を見る図。全保有者数と閾値別保有者数が同じように減れば実際の離脱、閾値別だけ横ばいならダストの掃き出しと解釈できる。"];
 const COMPARE_CHARTS = [
-  ["09_chain_supply_share.png", "チェーン別 流通量(面積グラフ)"],
-  ["10_chain_holders.png", "チェーン別 ホルダー数(折れ線)"],
+  ["09_chain_supply_share.png", "チェーン別 流通量の推移",
+    "4チェーンそれぞれの流通量を積み上げて示す。どのチェーンが流通量の増加を牽引しているかを比較できる。"],
+  ["10_chain_holders.png", "チェーン別 保有者数の推移",
+    "4チェーンそれぞれの保有者数を折れ線で比較する。"],
 ];
 const CHARTS = [
-  ["02_new_vs_churn.png", "新規獲得 vs 離脱(7日移動平均)"],
-  ["03_holder_buckets.png", "保有分布(ホルダー数構成比)の推移"],
-  ["04_value_buckets.png", "保有分布(金額構成比)の推移"],
-  ["05_concentration.png", "集中度(Gini / Top10 / Top100)"],
-  ["06_issuance_redemption.png", "発行・償還・流通量"],
-  ["07_activity.png", "アクティビティ(送金件数・アクティブアドレス数)"],
-  ["08_cohort_retention.png", "コホート保持ヒートマップ"],
+  ["02_new_vs_churn.png", "新規獲得アドレス数と離脱アドレス数の推移",
+    "新規に保有を始めたアドレス数と、残高を使い切って離脱したアドレス数の日次推移(7日移動平均)。"],
+  ["03_holder_buckets.png", "保有額階層別 保有者構成比の推移",
+    "保有者を残高階層別に分け、その構成比の推移を示す。小口保有者の割合が支配的かどうかを確認できる。"],
+  ["04_value_buckets.png", "保有額階層別 流通量構成比の推移",
+    "流通しているJPYCを金額ベースで見て、どの残高階層が大部分を占めているかを示す。保有者数の構成比(上図)とは逆に、少数の大口保有者が金額の大半を占める傾向が見える。"],
+  ["05_concentration.png", "保有集中度の推移",
+    "Gini係数と上位保有者(10/100アドレス)の保有シェアの推移。保有の偏りが時間とともにどう変化しているかを示す。"],
+  ["06_issuance_redemption.png", "ミント・バーン・流通量の累積推移",
+    "プロトコル上での新規発行(ミント)と償却(バーン)の累積、および両者の差である流通量の推移。"],
+  ["11_flow_breakdown.png", "資金フローの内訳の推移",
+    "運営ウォレットとの資金の出入りを、発行(運営→ユーザー)・償還(ユーザー→運営)・純粋なユーザー間取引の3つに分けて示す。ユーザー間取引が大きいほど、実際に決済・送金として使われている度合いが高いと解釈できる。"],
+  ["07_activity.png", "アクティビティの推移",
+    "日々の送金件数とアクティブアドレス数(7日移動平均)。実際にどれだけ活発に使われているかの目安。"],
+  ["08_cohort_retention.png", "獲得コホート別 保有継続率",
+    "同じ週に保有を始めたアドレスの集団(コホート)ごとに、その後何週間残高を維持しているかを示すヒートマップ。特定の週のコホートだけ定着率が低ければ、その時期の獲得施策の質を示唆する。"],
 ];
 const CSVS = [
   ["daily_panel", "日次パネル本体"],
@@ -212,12 +227,12 @@ function statTile(label, value, sub, title) {
   </div>`;
 }
 
-function figureHtml(file, caption) {
+function figureHtml(file, caption, explain) {
   return `
     <figure>
       <img src="${OUT}/figs_${window.__scope}/${file}" alt="${caption}"
            onerror="this.closest('figure').style.display='none'">
-      <figcaption>${caption}</figcaption>
+      <figcaption>${caption}${explain ? `<span class="explain">${explain}</span>` : ""}</figcaption>
     </figure>
   `;
 }
@@ -250,12 +265,6 @@ async function render(scope) {
                 "今、実際に出回っているJPYCの総量(発行量−償還量)"),
       statTile("累計発行量", fmtYen(s.cumulative_mint_volume), "",
                 "これまでに発行されたJPYCの合計額(償還分を含む)"),
-      statTile("発行回数(累計)", fmtInt(s.cumulative_mint_count) + " 回", "",
-                "これまでにミント(新規発行)が実行された回数"),
-      statTile("初回発行日", s.first_mint_date || "-", "",
-                "このチェーンで最初にJPYCが発行された日"),
-      statTile("最新発行日", s.last_mint_date || "-", "",
-                "直近でJPYCが発行された日"),
       statTile("ホルダー数 (>0円)", fmtInt(s.holders_gt0), wowHtml(s.holders_gt0_wow_pct),
                 "1円でもJPYCを持っているアドレスの数"),
       statTile("うち >=100円", fmtInt(s.holders_ge100), "", "残高100円以上のアドレス数(ごく少額のダストを除く)"),
@@ -269,16 +278,16 @@ async function render(scope) {
     statsEl.innerHTML = `<div class="missing">まだデータがありません(初回の収集・パネル構築の完了をお待ちください)</div>`;
   }
 
-  trendEl.innerHTML = figureHtml(TREND_CHART[0], TREND_CHART[1]);
+  trendEl.innerHTML = figureHtml(TREND_CHART[0], TREND_CHART[1], TREND_CHART[2]);
 
   if (scope === "combined") {
     compareSection.style.display = "";
-    compareEl.innerHTML = COMPARE_CHARTS.map(([f, c]) => figureHtml(f, c)).join("");
+    compareEl.innerHTML = COMPARE_CHARTS.map(([f, c, e]) => figureHtml(f, c, e)).join("");
   } else {
     compareSection.style.display = "none";
   }
 
-  chartsEl.innerHTML = CHARTS.map(([f, c]) => figureHtml(f, c)).join("");
+  chartsEl.innerHTML = CHARTS.map(([f, c, e]) => figureHtml(f, c, e)).join("");
 
   dlEl.innerHTML = CSVS.map(([base, label]) =>
     `<li><a href="${OUT}/${base}_${scope}.csv">${label} (${base}_${scope}.csv)</a></li>`
