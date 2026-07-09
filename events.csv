@@ -1,0 +1,6 @@
+# 主要グラフに縦線+ラベルで注釈するイベント一覧。手動で追記していく。
+# category は campaign(オレンジ) / news(紫) / regulatory(赤) を想定。他の値は灰色になる。
+# 例:
+# date,label,category
+# 2025-11-01,秋キャンペーン開始,campaign
+date,label,category

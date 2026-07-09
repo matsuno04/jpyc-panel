@@ -1,0 +1,8 @@
+# 手動ラベル用のアドレス台帳。category=exclude の行が集計から除外される。
+# 運営(ミント直後の中継)・CEXホットウォレット・コントラクト等をここに足していく。
+# 候補は output/flag_candidates_*.csv に自動で出るので、explorer(Etherscan/Polygonscan等)で
+# 確認しながら追記すること。address は小文字でなくてもよい(読み込み時に正規化)。
+address,label,category
+0x0000000000000000000000000000000000000000,zero address (mint/burn),exclude
+0x8549e82239a88f463ab6e55ad1895b629a00def3,JPYC issuer/treasury on Kaia (mint受領→ユーザーへ配布、KaiaScanでAccountKeyLegacy・ラベル無し・要目視確認済み),exclude
+0x24dde1c83adfbf5abd6a61775ecb65eae8da8da7,Kaia上の大口集約スマートコントラクト(Unifi関連の疑いあり・ノンカストディアルなら実ユーザー資産の可能性・除外は保留中),watch

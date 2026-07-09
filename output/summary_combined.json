@@ -1,0 +1,16 @@
+{
+ "date": "2026-07-08",
+ "circulating_supply": 4623493982.954741,
+ "circulating_supply_wow_pct": 0.270479637832501,
+ "cumulative_mint_volume": 7540000000.0,
+ "cumulative_mint_count": 18,
+ "first_mint_date": "2025-06-03",
+ "last_mint_date": "2026-07-03",
+ "holders_gt0": 53965,
+ "holders_gt0_wow_pct": 0.08441845510811027,
+ "holders_ge100": 38433,
+ "holders_ge1000": 10065,
+ "holders_ge10000": 2427,
+ "holders_ge1000000": 125,
+ "total_participants": 132301
+}

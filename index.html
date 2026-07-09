@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JPYC オンチェーン・パネル ダッシュボード</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1a1a1a;
+    --muted: #666;
+    --card-bg: #f5f5f7;
+    --border: #e0e0e0;
+    --accent: #2f6fed;
+    --up: #1a7f37;
+    --down: #cf222e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a;
+      --fg: #eaeaea;
+      --muted: #9aa0a6;
+      --card-bg: #1e2126;
+      --border: #2c2f36;
+      --accent: #6ea2ff;
+      --up: #3fb950;
+      --down: #f85149;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+    line-height: 1.6;
+  }
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
+  header h1 { font-size: 1.5rem; margin-bottom: .25rem; }
+  header p { color: var(--muted); margin-top: 0; font-size: .9rem; }
+  .controls {
+    display: flex; align-items: center; gap: .6rem; flex-wrap: wrap;
+    margin: 1.25rem 0 1.5rem;
+  }
+  select {
+    font-size: .95rem; padding: .4rem .6rem; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--card-bg); color: var(--fg);
+  }
+  .asof { color: var(--muted); font-size: .85rem; }
+  section { margin-bottom: 2.5rem; }
+  h2 { font-size: 1.05rem; border-bottom: 1px solid var(--border); padding-bottom: .4rem; }
+  .section-note { color: var(--muted); font-size: .82rem; margin-top: -.5rem; }
+
+  .stats {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: .75rem;
+  }
+  .stat {
+    background: var(--card-bg); border: 1px solid var(--border);
+    border-radius: 10px; padding: .8rem .9rem; cursor: help;
+  }
+  .stat .label { font-size: .75rem; color: var(--muted); margin-bottom: .25rem; }
+  .stat .value { font-size: 1.2rem; font-weight: 600; }
+  .stat .sub { font-size: .78rem; margin-top: .15rem; }
+  .up { color: var(--up); }
+  .down { color: var(--down); }
+
+  .charts { display: flex; flex-direction: column; gap: 2rem; }
+  figure { margin: 0; }
+  figure img {
+    width: 100%; height: auto; border-radius: 10px; border: 1px solid var(--border);
+    background: #fff;
+  }
+  figcaption { margin-top: .5rem; font-size: .85rem; color: var(--muted); }
+  .missing {
+    padding: 2rem; text-align: center; color: var(--muted);
+    border: 1px dashed var(--border); border-radius: 10px;
+  }
+  .downloads ul { padding-left: 1.2rem; margin: 0; }
+  .downloads a { color: var(--accent); text-decoration: none; }
+  .downloads a:hover { text-decoration: underline; }
+
+  .glossary dl { display: grid; grid-template-columns: max-content 1fr; gap: .3rem 1rem; }
+  .glossary dt { font-weight: 600; white-space: nowrap; }
+  .glossary dd { margin: 0; color: var(--muted); font-size: .9rem; }
+
+  footer {
+    margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--border);
+    color: var(--muted); font-size: .85rem;
+  }
+  footer a { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>JPYC オンチェーン・パネル ダッシュボード</h1>
+    <p>新JPYC(電子決済手段)の全Transferイベントから構築した日次パネルデータ。GitHub Actionsで毎日自動更新。</p>
+  </header>
+
+  <div class="controls">
+    <label for="scope">チェーン:</label>
+    <select id="scope">
+      <option value="combined" selected>combined(全チェーン合算)</option>
+      <option value="ethereum">ethereum</option>
+      <option value="polygon">polygon</option>
+      <option value="avalanche">avalanche</option>
+      <option value="kaia">kaia</option>
+    </select>
+    <span class="asof" id="asof"></span>
+  </div>
+
+  <section id="snapshot-section">
+    <h2>スナップショット(現在の状態)</h2>
+    <div class="stats" id="stats"></div>
+  </section>
+
+  <section id="trend-section">
+    <h2>ホルダー数の推移</h2>
+    <p class="section-note">「今の値」だけでなく、ここまでの推移を見るためのグラフです。</p>
+    <div class="charts" id="trend-chart"></div>
+  </section>
+
+  <section id="compare-section" style="display:none">
+    <h2>チェーン間の比較(combined)</h2>
+    <p class="section-note">どのチェーンが伸びているかを比較するグラフです。combined選択時のみ表示されます。</p>
+    <div class="charts" id="compare-charts"></div>
+  </section>
+
+  <section id="charts-section">
+    <h2>その他のグラフ</h2>
+    <div class="charts" id="charts"></div>
+  </section>
+
+  <section class="downloads">
+    <h2>データダウンロード(CSV)</h2>
+    <ul id="downloads"></ul>
+  </section>
+
+  <section class="glossary">
+    <h2>用語の説明</h2>
+    <dl>
+      <dt>ミント(mint)</dt><dd>新しくJPYCが発行されること。取引所などでJPYCを購入すると発行されます。</dd>
+      <dt>バーン(burn)</dt><dd>JPYCが償還されて消えること。JPYCを円に戻す(換金する)と発生します。</dd>
+      <dt>ホルダー</dt><dd>そのアドレス(ウォレット、銀行口座のようなもの)にJPYCを持っている人・アドレスの数。</dd>
+      <dt>ダスト</dt><dd>ごく少額の残高のこと。閾値以上を持つ人だけを数えることで「実質的な利用者数」を見ます。</dd>
+      <dt>流通量</dt><dd>今実際に出回っているJPYCの総量(発行量 − 償還量)。</dd>
+      <dt>Gini係数</dt><dd>保有の偏り具合を表す指標。0に近いほど平等、1に近いほど一部の人に集中しています。</dd>
+      <dt>コホート</dt><dd>同じ時期に初めてJPYCを持った人たちのグループ。定着率の分析に使います。</dd>
+      <dt>combined</dt><dd>Ethereum・Polygon・Avalanche・Kaiaの4チェーンをアドレス単位で合算したもの。同じ人が複数チェーンで持っていても、なるべく重複しないようにした値です。</dd>
+    </dl>
+  </section>
+
+  <footer>
+    <p>ソース: <a href="https://github.com/" id="repo-link">GitHub リポジトリ</a> ―
+       手法・列定義の詳細は README を参照。</p>
+  </footer>
+</div>
+
+<script>
+const OUT = "output";
+const TREND_CHART = ["01_holders_dust_sensitivity.png", "ホルダー数(ダスト閾値別)の推移"];
+const COMPARE_CHARTS = [
+  ["09_chain_supply_share.png", "チェーン別 流通量(面積グラフ)"],
+  ["10_chain_holders.png", "チェーン別 ホルダー数(折れ線)"],
+];
+const CHARTS = [
+  ["02_new_vs_churn.png", "新規獲得 vs 離脱(7日移動平均)"],
+  ["03_holder_buckets.png", "保有分布(ホルダー数構成比)の推移"],
+  ["04_value_buckets.png", "保有分布(金額構成比)の推移"],
+  ["05_concentration.png", "集中度(Gini / Top10 / Top100)"],
+  ["06_issuance_redemption.png", "発行・償還・流通量"],
+  ["07_activity.png", "アクティビティ(送金件数・アクティブアドレス数)"],
+  ["08_cohort_retention.png", "コホート保持ヒートマップ"],
+];
+const CSVS = [
+  ["daily_panel", "日次パネル本体"],
+  ["address_master", "アドレス台帳"],
+  ["cohort_retention", "コホート保持"],
+  ["balances_latest", "最新残高スナップショット"],
+  ["flag_candidates", "要ラベリング候補(CEX等)"],
+];
+
+function fmtInt(n) {
+  const v = Number(n);
+  if (Number.isNaN(v)) return "-";
+  return Math.round(v).toLocaleString("ja-JP");
+}
+
+function fmtYen(n) {
+  const v = Number(n);
+  if (Number.isNaN(v)) return "-";
+  return Math.round(v).toLocaleString("ja-JP") + " JPYC";
+}
+
+function wowHtml(pct) {
+  if (pct === null || pct === undefined || Number.isNaN(Number(pct))) {
+    return `<span class="sub" style="color:var(--muted)">先週比: -</span>`;
+  }
+  const v = Number(pct) * 100;
+  const cls = v >= 0 ? "up" : "down";
+  const sign = v >= 0 ? "+" : "";
+  return `<span class="sub ${cls}">先週比: ${sign}${v.toFixed(1)}%</span>`;
+}
+
+function statTile(label, value, sub, title) {
+  return `<div class="stat" title="${title || ""}">
+    <div class="label">${label}</div>
+    <div class="value">${value}</div>
+    ${sub ? `<div>${sub}</div>` : ""}
+  </div>`;
+}
+
+function figureHtml(file, caption) {
+  return `
+    <figure>
+      <img src="${OUT}/figs_${window.__scope}/${file}" alt="${caption}"
+           onerror="this.closest('figure').style.display='none'">
+      <figcaption>${caption}</figcaption>
+    </figure>
+  `;
+}
+
+async function render(scope) {
+  window.__scope = scope;
+  const statsEl = document.getElementById("stats");
+  const trendEl = document.getElementById("trend-chart");
+  const compareSection = document.getElementById("compare-section");
+  const compareEl = document.getElementById("compare-charts");
+  const chartsEl = document.getElementById("charts");
+  const asofEl = document.getElementById("asof");
+  const dlEl = document.getElementById("downloads");
+
+  statsEl.innerHTML = "";
+  trendEl.innerHTML = "";
+  compareEl.innerHTML = "";
+  chartsEl.innerHTML = "";
+  dlEl.innerHTML = "";
+  asofEl.textContent = "";
+
+  try {
+    const res = await fetch(`${OUT}/summary_${scope}.json`, {cache: "no-store"});
+    if (!res.ok) throw new Error("summary not found");
+    const s = await res.json();
+    asofEl.textContent = `最終データ日: ${s.date}`;
+
+    statsEl.innerHTML = [
+      statTile("流通量", fmtYen(s.circulating_supply), wowHtml(s.circulating_supply_wow_pct),
+                "今、実際に出回っているJPYCの総量(発行量−償還量)"),
+      statTile("累計発行量", fmtYen(s.cumulative_mint_volume), "",
+                "これまでに発行されたJPYCの合計額(償還分を含む)"),
+      statTile("発行回数(累計)", fmtInt(s.cumulative_mint_count) + " 回", "",
+                "これまでにミント(新規発行)が実行された回数"),
+      statTile("初回発行日", s.first_mint_date || "-", "",
+                "このチェーンで最初にJPYCが発行された日"),
+      statTile("最新発行日", s.last_mint_date || "-", "",
+                "直近でJPYCが発行された日"),
+      statTile("ホルダー数 (>0円)", fmtInt(s.holders_gt0), wowHtml(s.holders_gt0_wow_pct),
+                "1円でもJPYCを持っているアドレスの数"),
+      statTile("うち >=100円", fmtInt(s.holders_ge100), "", "残高100円以上のアドレス数(ごく少額のダストを除く)"),
+      statTile("うち >=1,000円", fmtInt(s.holders_ge1000), "", "残高1,000円以上のアドレス数"),
+      statTile("うち >=1万円", fmtInt(s.holders_ge10000), "", "残高1万円以上のアドレス数"),
+      statTile("うち >=100万円", fmtInt(s.holders_ge1000000), "", "残高100万円以上のアドレス数"),
+      statTile("総参加アドレス数", fmtInt(s.total_participants), "",
+                "一度でもJPYCを保有したことがあるアドレスの延べ数(現在は残高0の人も含む)"),
+    ].join("");
+  } catch (e) {
+    statsEl.innerHTML = `<div class="missing">まだデータがありません(初回の収集・パネル構築の完了をお待ちください)</div>`;
+  }
+
+  trendEl.innerHTML = figureHtml(TREND_CHART[0], TREND_CHART[1]);
+
+  if (scope === "combined") {
+    compareSection.style.display = "";
+    compareEl.innerHTML = COMPARE_CHARTS.map(([f, c]) => figureHtml(f, c)).join("");
+  } else {
+    compareSection.style.display = "none";
+  }
+
+  chartsEl.innerHTML = CHARTS.map(([f, c]) => figureHtml(f, c)).join("");
+
+  dlEl.innerHTML = CSVS.map(([base, label]) =>
+    `<li><a href="${OUT}/${base}_${scope}.csv">${label} (${base}_${scope}.csv)</a></li>`
+  ).join("");
+}
+
+document.getElementById("scope").addEventListener("change", (e) => render(e.target.value));
+render(document.getElementById("scope").value);
+</script>
+</body>
+</html>
