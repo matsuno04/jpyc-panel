@@ -1,13 +1,13 @@
 {
  "date": "2026-07-09",
- "circulating_supply": 1999678367.5550158,
- "circulating_supply_wow_pct": 0.5711491453842122,
+ "circulating_supply": 2027621778.0542033,
+ "circulating_supply_wow_pct": 0.5931043088931313,
  "cumulative_mint_volume": 7540000000.0,
- "holders_gt0": 53950,
- "holders_gt0_wow_pct": 0.08442211055276382,
- "holders_ge100": 38434,
- "holders_ge1000": 10070,
- "holders_ge10000": 2431,
- "holders_ge1000000": 127,
- "total_participants": 132296
+ "holders_gt0": 53962,
+ "holders_gt0_wow_pct": 0.08466331658291457,
+ "holders_ge100": 38455,
+ "holders_ge1000": 10091,
+ "holders_ge10000": 2447,
+ "holders_ge1000000": 128,
+ "total_participants": 132319
 }
