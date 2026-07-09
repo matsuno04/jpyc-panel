@@ -110,3 +110,10 @@ scope は `ethereum / polygon / avalanche / kaia / combined`。**combined はア
 - 閾値・バケット・保持判定: `config.py` の `DUST_THRESHOLDS / BALANCE_BUCKETS / RETENTION_THRESHOLD`
 - RPCが不調: `config.py` の `rpcs` リストに [chainlist.org](https://chainlist.org) から生きているエンドポイントを足す(先頭が優先)
 - 他トークンの比較収集: `JPYC_CONTRACT` を差し替え、`DATA_DIR/OUT_DIR` を変えて実行
+
+## 7. Webサイト・自動更新
+
+- **公開サイト**: [GitHub Pages](https://matsuno04.github.io/jpyc-panel/) で `index.html` を公開している。チェーン切替・スナップショット・時系列グラフ・チェーン間比較・CSVダウンロードを1画面で見られる。
+- **イベント注釈**: リポジトリ直下の `events.csv`(列: `date,label,category`)にキャンペーン等の日付を追記すると、主要グラフに縦線+ラベルで自動的に注釈が入る(`category` は `campaign`/`news`/`regulatory` で色分け)。
+- **自動更新**: `.github/workflows/daily.yml` が毎日 `collector.py` → `panel_builder.py` → `analyze.py` を実行し、`data/` `output/` の差分を自動コミットする。GitHub Pagesは同じブランチへのpushで自動的に再公開される。
+- **Polygonの高速収集**: Polygonは素の公開RPCだと `eth_getLogs` の範囲制限が厳しく現実的な時間で終わらないため、無料のEtherscan API(v2統合API)経由で取得する仕組みを用意している。リポジトリのSecretsに `ETHERSCAN_API_KEY` を設定すると自動的に使われる(未設定なら通常のRPC走査にフォールバックする)。キーは https://etherscan.io で無料登録すれば取得できる。
