@@ -117,3 +117,31 @@ scope は `ethereum / polygon / avalanche / kaia / combined`。**combined はア
 - **イベント注釈**: リポジトリ直下の `events.csv`(列: `date,label,category`)にキャンペーン等の日付を追記すると、主要グラフに縦線+ラベルで自動的に注釈が入る(`category` は `campaign`/`news`/`regulatory` で色分け)。
 - **自動更新**: `.github/workflows/daily.yml` が毎日 `collector.py` → `panel_builder.py` → `analyze.py` を実行し、`data/` `output/` の差分を自動コミットする。GitHub Pagesは同じブランチへのpushで自動的に再公開される。
 - **Polygonの高速収集**: Polygonは素の公開RPCだと `eth_getLogs` の範囲制限が厳しく現実的な時間で終わらないため、無料のEtherscan API(v2統合API)経由で取得する仕組みを用意している。リポジトリのSecretsに `ETHERSCAN_API_KEY` を設定すると自動的に使われる(未設定なら通常のRPC走査にフォールバックする)。キーは https://etherscan.io で無料登録すれば取得できる。
+
+## 8. 将来の自分へ(数か月後に再開するときのガイド)
+
+このプロジェクトは日次で自動更新され続けているので、久しぶりに触るときは以下だけ把握していれば十分。
+
+- **公開サイト**: https://matsuno04.github.io/jpyc-panel/
+- **リポジトリ**: https://github.com/matsuno04/jpyc-panel(GitHub Actionsが毎日自動でデータ更新・再公開している)
+- 何もしなくてもデータは毎日更新され続けているので、「久しぶりに見たら壊れていた」場合は Actions タブで直近の実行が失敗していないか確認するのが最初の一手。
+
+### サイトの修正・機能追加を頼むとき
+
+AIアシスタント(Claude Code)に、リポジトリのパスを開いた状態で頼めば十分動く。特別な準備は不要。例えば:
+
+> 「jpyc-panelのサイトで、◯◯のグラフに△△を追加してほしい」
+> 「index.htmlのスナップショット欄に□□の指標を足して」
+
+### 新しい運営/取引所アドレスを除外してほしいとき
+
+以下のどちらかで依頼すれば良い。
+
+1. **調査から丸投げする場合**(推奨): 「`output/flag_candidates_{チェーン名}.csv` を確認して、新しい運営っぽいアドレスがないか調べて、あれば `known_addresses.csv` に追記してパネルを再構築・pushして」とだけ言えば、AIが自動でブロックエクスプローラーを調べて判断してくれる。
+2. **自分で見つけたアドレスがある場合**: アドレス・チェーン名に加えて、ブロックエクスプローラー(Kaia→KaiaScan、Ethereum→Etherscan、Polygon→Polygonscan、Avalanche→Snowtrace)で見えるラベルやタグのスクリーンショット・説明を渡すと確実。「Public Name Tag」が付いていれば一番確実な根拠になる。
+
+### 除外・ラベリングの現在の考え方(判断基準)
+
+- **exclude**: 運営(発行体)のウォレットや、公式ラベルの付いた償還コントラクト等、明確に「一般ユーザーではない」と確認できたもの
+- **watch**: 大口だが正体不明、または非カストディアルウォレットサービス(Unifi等)関連で「実ユーザー資産の可能性がある」もの → 除外せず保留
+- 判断に迷う場合は焦って除外せず、`watch` にして保留するのが安全(除外しすぎると流通量を過小評価してしまう)
