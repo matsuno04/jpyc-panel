@@ -115,7 +115,7 @@ def build_summary(panel):
 
 
 # ---------------------------------------------------------------- core build
-def build(scope_name, ev, decimals, exclude):
+def build(scope_name, ev, decimals, exclude, reviewed=frozenset()):
     unit = 10 ** decimals
     thr_units = [int(t * unit) for t in DUST_THRESHOLDS]  # 整数比較用
 
@@ -305,10 +305,17 @@ def build(scope_name, ev, decimals, exclude):
         os.path.join(OUT_DIR, f"balances_latest_{scope_name}.csv"), index=False)
 
     # フラグ候補: 相手方数・取扱量の上位(CEXホットウォレット/運営の候補)
+    # + ミント受取アドレスは取扱量が少なくても必ず候補に入れる(中継アドレス等の見落とし防止)
+    # known_addresses.csv に既に登録済み(exclude/watch問わず)のアドレスは、
+    # 確認済みとして候補から除く → 残るのは「まだ見ていない新顔」だけになる
     cand = master.copy()
     cand["degree"] = cand["n_counterparties_in"] + cand["n_counterparties_out"]
     cand["turnover"] = cand["total_in"] + cand["total_out"]
-    cand = cand.sort_values(["degree", "turnover"], ascending=False).head(40)
+    cand = cand[~cand["address"].isin(reviewed)]
+    top = cand.sort_values(["degree", "turnover"], ascending=False).head(40)
+    mint_addrs = cand[cand["received_mint"]]
+    cand = pd.concat([top, mint_addrs]).drop_duplicates(subset="address")
+    cand = cand.sort_values(["received_mint", "degree", "turnover"], ascending=False)
     cand[["address", "degree", "turnover", "balance", "n_tx_in", "n_tx_out",
           "received_mint", "sent_burn", "first_seen"]].to_csv(
         os.path.join(OUT_DIR, f"flag_candidates_{scope_name}.csv"), index=False)
@@ -330,18 +337,19 @@ def main(chains=None):
     chains = chains or [c for c in CHAINS
                         if os.path.exists(os.path.join(DATA_DIR, f"events_{c}.parquet"))]
     known, exclude = load_known_addresses()
+    reviewed = set(known["address"])  # exclude/watch問わず、既に確認済みのアドレス
     print(f"除外アドレス(known_addresses.csv, category=exclude): {len(exclude)}件")
 
     # チェーン別
     for c in chains:
         ev, dec = load_events([c])
-        build(c, ev, dec, exclude)
+        build(c, ev, dec, exclude, reviewed)
 
     # 全チェーン統合: 同一アドレスはEVM系では同一の鍵保有者である可能性が高いので、
     # 残高をアドレス単位でチェーン横断合算した"combined"を作る(ユニーク保有者の近似)。
     if len(chains) > 1:
         ev, dec = load_events(chains)
-        build("combined", ev, dec, exclude)
+        build("combined", ev, dec, exclude, reviewed)
 
 
 if __name__ == "__main__":
