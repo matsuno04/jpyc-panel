@@ -42,9 +42,12 @@ GROW_AFTER = 8  # 連続成功でチャンク幅を1.5倍
 # 無料APIキー(courriel登録のみ・課金不要)を環境変数 ETHERSCAN_API_KEY に設定して使う。
 ETHERSCAN_BASE = "https://api.etherscan.io/v2/api"
 ETHERSCAN_PAGE_SIZE = 1000
-# 深いページネーション(3ページ以上)を跨ぐと、まれに境界でイベントが
-# 欠落することが判明したため、早めに範囲を縮めて多ページ化を避ける。
-ETHERSCAN_MAX_PAGES = 2
+# ページを跨ぐ継続取得そのものがEtherscan側の境界でイベント欠落を
+# 起こすことが判明した(polygonの負残高調査で確認済み)ため、1ページ
+# (1000件)に収まらない範囲は次ページを取得せずブロック幅を縮めて
+# 再試行する。呼び出し回数はやや増えるが1週間分のシミュレーションで
+# +10%程度(数十秒)で、日次ジョブ全体(6〜11分)への影響は軽微。
+ETHERSCAN_MAX_PAGES = 1
 
 
 def etherscan_get_logs(chain_id, address, topic0, from_block, to_block, api_key, page,
