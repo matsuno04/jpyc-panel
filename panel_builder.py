@@ -74,7 +74,15 @@ def load_events(chains):
         raise FileNotFoundError("イベントファイルがありません。先に collector.py を実行してください。")
     ev = pd.concat(frames, ignore_index=True)
     ev = ev.sort_values(["ts", "chain", "block", "log_index"]).reset_index(drop=True)
-    ev["date"] = pd.to_datetime(ev["ts"], unit="s").dt.date
+    # ts(epoch秒)はUTC基準。日次集計の日境界はJST(UTC+9)で区切りたいので、
+    # 一旦UTCとして明示(tz_localize)してからJSTに変換(tz_convert)し、
+    # その上で日付だけを取り出す。ts列自体はUTC epoch秒のまま変更しない。
+    ev["date"] = (
+        pd.to_datetime(ev["ts"], unit="s")
+        .dt.tz_localize("UTC")
+        .dt.tz_convert("Asia/Tokyo")
+        .dt.date
+    )
     return ev, (decimals if decimals is not None else 18)
 
 
