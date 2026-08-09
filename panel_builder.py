@@ -51,6 +51,17 @@ def load_known_addresses(path="known_addresses.csv"):
     return df, excl
 
 
+def load_dex_hub_addresses(path="dex_hub_addresses.csv"):
+    """DEXルーター/プール等の中継アドレス(取引量が極端に多く、実ユーザーの
+    保有・普及行動の分析対象外とみなすもの)。known_addresses.csvのexclude
+    (運営ウォレット)とは別枠: 発行/償還/internal分類には使わず、
+    保有者・アクティブアドレス集計(_ex_hub列)からのみ除外する。"""
+    if not os.path.exists(path):
+        return set()
+    df = pd.read_csv(path, comment="#")
+    return set(df["address"].str.lower().str.strip())
+
+
 def load_events(chains):
     frames = []
     decimals = None
@@ -118,9 +129,15 @@ def build_summary(panel):
 
 
 # ---------------------------------------------------------------- core build
-def build(scope_name, ev, decimals, exclude, reviewed=frozenset()):
+def build(scope_name, ev, decimals, exclude, reviewed=frozenset(), dex_hub=frozenset()):
+    """dex_hub: DEXルーター/プール等(known_addresses.csvのexclude=運営とは別枠)。
+    発行/償還/internal分類には使わない。保有者・アクティブアドレス系の指標は、
+    既存の列(exclude=運営のみ除外、DEXハブ含む「広い普及」の指標)に加えて、
+    同じ指標に _ex_hub を付けた列(exclude+dex_hub除外、「直接的なP2P利用」の
+    指標)を追加出力する。既存列の意味・値は変更しない(後方互換)。"""
     unit = 10 ** decimals
     thr_units = [int(t * unit) for t in DUST_THRESHOLDS]  # 整数比較用
+    hub_excl = exclude | dex_hub
 
     balances = {}       # address -> int 残高(最小単位)
     first_seen = {}     # address -> date (初めて残高>0になった日)
@@ -152,6 +169,7 @@ def build(scope_name, ev, decimals, exclude, reviewed=frozenset()):
         n_issuance = n_redemption = n_internal = n_transfer = 0
         v_issuance = v_redemption = v_internal = v_transfer = 0
         senders = set(); receivers = set()
+        senders_ex = set(); receivers_ex = set()
 
         for frm, to, vr in zip(day["from"].values, day["to"].values,
                                day["value_raw"].values):
@@ -169,6 +187,8 @@ def build(scope_name, ev, decimals, exclude, reviewed=frozenset()):
                 last_active[frm] = d
                 if frm not in exclude:
                     senders.add(frm)
+                if frm not in hub_excl:
+                    senders_ex.add(frm)
             if not is_burn:
                 if to not in touched:
                     touched[to] = balances.get(to, 0)
@@ -179,6 +199,8 @@ def build(scope_name, ev, decimals, exclude, reviewed=frozenset()):
                 last_active[to] = d
                 if to not in exclude:
                     receivers.add(to)
+                if to not in hub_excl:
+                    receivers_ex.add(to)
 
             if is_mint:
                 n_mint += 1; v_mint += v
@@ -201,27 +223,42 @@ def build(scope_name, ev, decimals, exclude, reviewed=frozenset()):
 
         # --- 当日の遷移(new / zeroed / resurrected) ---
         new_a = zeroed_a = resurrected_a = 0
+        new_a_ex = zeroed_a_ex = resurrected_a_ex = 0
         for a, pre in touched.items():
             post = balances.get(a, 0)
             if a in exclude or a == ZERO_ADDRESS:
                 continue
+            is_hub = a in dex_hub
             if post > 0 and a not in ever_seen:
                 ever_seen.add(a)
                 first_seen[a] = d
                 iso = pd.Timestamp(d).to_period("W").start_time.date()
                 first_week[a] = iso
                 new_a += 1
+                if not is_hub:
+                    new_a_ex += 1
             elif pre <= 0 and post > 0 and a in ever_seen:
                 resurrected_a += 1
+                if not is_hub:
+                    resurrected_a_ex += 1
             elif pre > 0 and post <= 0 and a in ever_seen:
                 zeroed_a += 1
+                if not is_hub:
+                    zeroed_a_ex += 1
 
         # --- 日末スナップショット統計 ---
+        # "全体"(運営のみ除外、DEXハブ含む=広い普及の指標。既存列、後方互換のため不変)
         pos = np.array([v for a, v in balances.items()
                         if v > 0 and a not in exclude and a != ZERO_ADDRESS],
                        dtype=np.float64) / unit
         pos_sorted = np.sort(pos)[::-1] if len(pos) else pos
         total_bal = pos.sum()
+        # "_ex_hub"(運営+DEXハブ除外=直接的なP2P利用の指標。新規追加列)
+        pos_ex = np.array([v for a, v in balances.items()
+                           if v > 0 and a not in hub_excl and a != ZERO_ADDRESS],
+                          dtype=np.float64) / unit
+        pos_ex_sorted = np.sort(pos_ex)[::-1] if len(pos_ex) else pos_ex
+        total_bal_ex = pos_ex.sum()
 
         row = {
             "date": d,
@@ -246,16 +283,37 @@ def build(scope_name, ev, decimals, exclude, reviewed=frozenset()):
             "gini": gini(pos),
             "top10_share": float(pos_sorted[:10].sum() / total_bal) if total_bal > 0 else np.nan,
             "top100_share": float(pos_sorted[:100].sum() / total_bal) if total_bal > 0 else np.nan,
+            # ---- ここから DEXハブ除外版(_ex_hub) ----
+            "unique_senders_ex_hub": len(senders_ex),
+            "unique_receivers_ex_hub": len(receivers_ex),
+            "active_addresses_ex_hub": len(senders_ex | receivers_ex),
+            "new_addresses_ex_hub": new_a_ex,
+            "zeroed_addresses_ex_hub": zeroed_a_ex,
+            "resurrected_addresses_ex_hub": resurrected_a_ex,
+            "holders_gt0_ex_hub": int(len(pos_ex)),
+            "circulating_supply_ex_hub": total_bal_ex,
+            "mean_balance_ex_hub": float(pos_ex.mean()) if len(pos_ex) else np.nan,
+            "median_balance_ex_hub": float(np.median(pos_ex)) if len(pos_ex) else np.nan,
+            "gini_ex_hub": gini(pos_ex),
+            "top10_share_ex_hub": float(pos_ex_sorted[:10].sum() / total_bal_ex) if total_bal_ex > 0 else np.nan,
+            "top100_share_ex_hub": float(pos_ex_sorted[:100].sum() / total_bal_ex) if total_bal_ex > 0 else np.nan,
         }
         for t, tu in zip(DUST_THRESHOLDS, thr_units):
             row[f"holders_ge{int(t)}"] = int((pos >= t).sum())
+            row[f"holders_ge{int(t)}_ex_hub"] = int((pos_ex >= t).sum())
         for name, lo, hi in BALANCE_BUCKETS:
             m = (pos >= lo) & (pos < hi)
             row[f"n_{name}"] = int(m.sum())
             row[f"val_{name}"] = float(pos[m].sum())
+            m_ex = (pos_ex >= lo) & (pos_ex < hi)
+            row[f"n_{name}_ex_hub"] = int(m_ex.sum())
+            row[f"val_{name}_ex_hub"] = float(pos_ex[m_ex].sum())
         row["share_holders_lt10k"] = (
             (row["n_lt_1k"] + row["n_1k_10k"]) / row["holders_gt0"]
             if row["holders_gt0"] else np.nan)
+        row["share_holders_lt10k_ex_hub"] = (
+            (row["n_lt_1k_ex_hub"] + row["n_1k_10k_ex_hub"]) / row["holders_gt0_ex_hub"]
+            if row["holders_gt0_ex_hub"] else np.nan)
         daily_rows.append(row)
 
         # --- 週次コホート保持(週の変わり目 or 最終日に記録) ---
@@ -315,6 +373,7 @@ def build(scope_name, ev, decimals, exclude, reviewed=frozenset()):
         "received_mint": [a in got_mint for a in addrs],
         "sent_burn": [a in did_burn for a in addrs],
         "excluded": [a in exclude for a in addrs],
+        "is_dex_hub": [a in dex_hub for a in addrs],
     })
     master.to_csv(os.path.join(OUT_DIR, f"address_master_{scope_name}.csv"),
                   index=False)
@@ -368,19 +427,21 @@ def main(chains=None):
     chains = chains or [c for c in CHAINS
                         if os.path.exists(os.path.join(DATA_DIR, f"events_{c}.parquet"))]
     known, exclude = load_known_addresses()
+    dex_hub = load_dex_hub_addresses()
     reviewed = set(known["address"])  # exclude/watch問わず、既に確認済みのアドレス
     print(f"除外アドレス(known_addresses.csv, category=exclude): {len(exclude)}件")
+    print(f"DEXハブ除外(dex_hub_addresses.csv, 集計のみ・発行償還分類には不使用): {len(dex_hub)}件")
 
     # チェーン別
     for c in chains:
         ev, dec = load_events([c])
-        build(c, ev, dec, exclude, reviewed)
+        build(c, ev, dec, exclude, reviewed, dex_hub)
 
     # 全チェーン統合: 同一アドレスはEVM系では同一の鍵保有者である可能性が高いので、
     # 残高をアドレス単位でチェーン横断合算した"combined"を作る(ユニーク保有者の近似)。
     if len(chains) > 1:
         ev, dec = load_events(chains)
-        build("combined", ev, dec, exclude, reviewed)
+        build("combined", ev, dec, exclude, reviewed, dex_hub)
 
 
 if __name__ == "__main__":

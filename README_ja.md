@@ -59,6 +59,7 @@ scope は `ethereum / polygon / avalanche / kaia / combined`。**combined はア
 | `share_holders_lt10k` | 1万円未満保有者の割合 | **論文の「82–98%」主張の直接検証**。時系列で見られるのがポイント |
 | `gini / top10_share / top100_share` | 集中度 | 分散化の進行度。低下トレンド=一般層への広がりと整合 |
 | `mean / median_balance` | 平均・中央値残高 | 平均≫中央値の乖離=分布の歪み |
+| `active_addresses_ex_hub`等(`_ex_hub`サフィックス) | 上記の保有者・アクティブアドレス系列(active_addresses/holders_gt0/circulating_supply/new_addresses等)を、`dex_hub_addresses.csv`記載のDEXルーター/プールも除外して再計算したもの | 無印の列は運営ウォレットのみ除外(DEXハブ含む「広い普及」)、`_ex_hub`は運営+DEXハブ除外(「直接的なP2P利用」)。両方参照することで、DEX経由も含めた普及とネイティブなP2P利用を切り分けられる。`transfers`等イベント自体は削除していないので両者で一致 |
 
 ### 3.2 `address_master_{scope}.csv` — アドレス台帳
 
@@ -75,6 +76,8 @@ scope は `ethereum / polygon / avalanche / kaia / combined`。**combined はア
 ### 3.4 `flag_candidates_{scope}.csv` — 要ラベリング
 
 ユニーク相手方数(degree)と取扱量の上位40アドレス。CEXホットウォレット・運営・決済コントラクトはここに浮上する。**explorerで確認して `known_addresses.csv` に `category=exclude` で追記 → builder再実行**、が運用ループ。除外前後の両方の数字を持っておくと、頑健性チェック(robustness)として論文に書ける。
+
+なお、取引量が極端に多いDEXルーター/プール等(実ユーザーではない中継アドレス)は`known_addresses.csv`とは別枠の`dex_hub_addresses.csv`で管理する。こちらは発行/償還/internal分類には使わず、`daily_panel_{scope}.csv`の`_ex_hub`列(上記3.1参照)にのみ反映される。基準は取引量1000件以上(2026-08-09時点でpolygon 78件)。
 
 ### 3.5 `balances_latest_{scope}.csv`
 
@@ -104,6 +107,7 @@ scope は `ethereum / polygon / avalanche / kaia / combined`。**combined はア
 3. **タイムスタンプはグリッド補間**(誤差±数分程度)。日次集計には影響しないが、時間単位の分析をするなら `ts_grid_step` を小さくする。
 4. **CEX内部の移転は見えない**(オフチェーン)。取引所経由の保有・売買はmint/burn/入出金しか観測できない。
 5. パブリックRPCはレート制限がある。Polygonの初回フルスキャンは数時間かかり得る。失敗しても再開できるので放置でよい。
+6. **Polygonの一部アドレスで残高が負になる既知の欠落が残っている(2026-08-09時点でpolygon 36件、combined 31件)**。原因はEtherscan API経由でのログ収集における取得漏れ(詳細はcollector.pyの`ETHERSCAN_MAX_PAGES`周辺のコメント参照。2026-08-09に2→1へ変更し新規発生は抑制済み)。過去分については、取引量1000件以上のDEXルーター/プール等(`dex_hub_addresses.csv`、78件)を巻き込むと復旧作業自体が新たな負残高を誘発する「モグラ叩き」現象を確認したため、低取引量アドレス(<100件、145件)のみを対象に非再帰の補完を実施し163件→36件まで改善した。残る36件(高頻度アドレスに接続するものが中心)は追加の復旧を保留し、既知の限界として記録する。`address_master_{scope}.csv`の`balance`が負のアドレスがこれに該当する。
 
 ## 6. カスタマイズ
 
