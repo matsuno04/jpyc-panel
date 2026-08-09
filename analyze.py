@@ -153,7 +153,10 @@ def main():
 
     # 1. ホルダー数(ダスト感度バンド) — ダスト保有者を除いた実質的な保有者数の分解
     fig, ax = plt.subplots(figsize=(10, 5))
-    ax.plot(p.date, p.holders_gt0, label="残高 > 0円(全保有者)", lw=2)
+    line, = ax.plot(p.date, p.holders_gt0, label="残高 > 0円(全保有者)", lw=2)
+    if "holders_gt0_ex_hub" in p:
+        ax.plot(p.date, p.holders_gt0_ex_hub, label="残高 > 0円(DEXハブ除く)",
+                lw=1.5, ls="--", color=line.get_color())
     for t in DUST_THRESHOLDS:
         col = f"holders_ge{int(t)}"
         if col in p:
@@ -163,19 +166,26 @@ def main():
     annotate_events(ax, events, x_min, x_max)
     save(fig, "01_holders_dust_sensitivity.png", fig_dir)
 
-    # 2. 新規獲得 vs 離脱(7日移動平均)
+    # 2. 新規獲得 vs 離脱(7日移動平均、実線=全体、破線=DEXハブ除く)
     fig, ax = plt.subplots(figsize=(10, 5))
-    ax.plot(p.date, p.new_addresses.rolling(7).mean(), label="新規獲得(7日移動平均)")
-    ax.plot(p.date, p.zeroed_addresses.rolling(7).mean(), label="離脱(7日移動平均)")
-    ax.plot(p.date, p.resurrected_addresses.rolling(7).mean(),
-            label="再保有(7日移動平均)", alpha=.7)
+    for col, col_ex, label, kw in [
+        ("new_addresses", "new_addresses_ex_hub", "新規獲得(7日移動平均)", {}),
+        ("zeroed_addresses", "zeroed_addresses_ex_hub", "離脱(7日移動平均)", {}),
+        ("resurrected_addresses", "resurrected_addresses_ex_hub", "再保有(7日移動平均)", {"alpha": .7}),
+    ]:
+        line, = ax.plot(p.date, p[col].rolling(7).mean(), label=label, **kw)
+        if col_ex in p:
+            ax.plot(p.date, p[col_ex].rolling(7).mean(), label=f"{label.replace('(7日移動平均)','')}(DEXハブ除く、7日移動平均)",
+                    lw=1.2, ls="--", color=line.get_color())
     ax.set_title(f"新規獲得アドレス数と離脱アドレス数の推移 ― {scope_label}")
     ax.set_ylabel("アドレス数/日"); ax.legend(); ax.grid(alpha=.3)
     annotate_events(ax, events, x_min, x_max)
     save(fig, "02_new_vs_churn.png", fig_dir)
 
     # 3. 保有分布(ホルダー数構成比)の推移
-    bucket_cols = [c for c in p.columns if c.startswith("n_")]
+    # "n_"で始まる列にはDEXハブ除外版(_ex_hubサフィックス)も含まれるため、
+    # 無印(全体)の5系列だけに絞る。
+    bucket_cols = [c for c in p.columns if c.startswith("n_") and not c.endswith("_ex_hub")]
     shares = p[bucket_cols].div(p["holders_gt0"], axis=0)
     fig, ax = plt.subplots(figsize=(10, 5))
     ax.stackplot(p.date, [shares[c] for c in bucket_cols],
@@ -186,7 +196,7 @@ def main():
     save(fig, "03_holder_buckets.png", fig_dir)
 
     # 4. 金額ベースの分布(どの層が価値を保有しているか)
-    val_cols = [c for c in p.columns if c.startswith("val_")]
+    val_cols = [c for c in p.columns if c.startswith("val_") and not c.endswith("_ex_hub")]
     vshares = p[val_cols].div(p["circulating_supply"], axis=0)
     fig, ax = plt.subplots(figsize=(10, 5))
     ax.stackplot(p.date, [vshares[c] for c in val_cols],
@@ -196,11 +206,17 @@ def main():
     ax.legend(loc="lower left", fontsize=8); ax.grid(alpha=.3)
     save(fig, "04_value_buckets.png", fig_dir)
 
-    # 5. 集中度
+    # 5. 集中度(実線=全体、破線=DEXハブ除く。同じ色で対応関係を示す)
     fig, ax = plt.subplots(figsize=(10, 5))
-    ax.plot(p.date, p.gini, label="Gini係数")
-    ax.plot(p.date, p.top10_share, label="上位10アドレスの保有シェア")
-    ax.plot(p.date, p.top100_share, label="上位100アドレスの保有シェア")
+    for col, col_ex, label in [
+        ("gini", "gini_ex_hub", "Gini係数"),
+        ("top10_share", "top10_share_ex_hub", "上位10アドレスの保有シェア"),
+        ("top100_share", "top100_share_ex_hub", "上位100アドレスの保有シェア"),
+    ]:
+        line, = ax.plot(p.date, p[col], label=label)
+        if col_ex in p:
+            ax.plot(p.date, p[col_ex], label=f"{label}(DEXハブ除く)",
+                    lw=1.2, ls="--", color=line.get_color())
     ax.set_title(f"保有集中度の推移 ― {scope_label}"); ax.set_ylim(0, 1)
     ax.legend(); ax.grid(alpha=.3)
     annotate_events(ax, events, x_min, x_max)
@@ -210,7 +226,10 @@ def main():
     fig, ax = plt.subplots(figsize=(10, 5))
     ax.plot(p.date, p.mint_volume.cumsum(), label="累積ミント量(新規発行)")
     ax.plot(p.date, p.burn_volume.cumsum(), label="累積バーン量(償却)")
-    ax.plot(p.date, p.circulating_supply, label="流通量", lw=2)
+    line, = ax.plot(p.date, p.circulating_supply, label="流通量", lw=2)
+    if "circulating_supply_ex_hub" in p:
+        ax.plot(p.date, p.circulating_supply_ex_hub, label="流通量(DEXハブ除く)",
+                lw=1.5, ls="--", color=line.get_color())
     ax.set_title(f"ミント・バーン・流通量の累積推移 ― {scope_label}")
     ax.set_ylabel("JPYC"); ax.legend(); ax.grid(alpha=.3)
     annotate_events(ax, events, x_min, x_max)
@@ -219,8 +238,12 @@ def main():
     # 7. アクティビティ
     fig, ax = plt.subplots(figsize=(10, 5))
     ax.plot(p.date, p.transfers.rolling(7).mean(), label="送金件数(7日移動平均)")
-    ax.plot(p.date, p.active_addresses.rolling(7).mean(),
-            label="アクティブアドレス数(7日移動平均)")
+    line, = ax.plot(p.date, p.active_addresses.rolling(7).mean(),
+                    label="アクティブアドレス数(7日移動平均)")
+    if "active_addresses_ex_hub" in p:
+        ax.plot(p.date, p.active_addresses_ex_hub.rolling(7).mean(),
+                label="アクティブアドレス数(DEXハブ除く、7日移動平均)",
+                lw=1.5, ls="--", color=line.get_color())
     ax.set_title(f"アクティビティの推移 ― {scope_label}"); ax.legend(); ax.grid(alpha=.3)
     annotate_events(ax, events, x_min, x_max)
     save(fig, "07_activity.png", fig_dir)

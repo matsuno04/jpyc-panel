@@ -113,7 +113,7 @@ def build_summary(panel):
             return None
         return float((last[col] - pv) / pv)
 
-    return {
+    summary = {
         "date": str(last["date"]),
         "circulating_supply": float(last["circulating_supply"]),
         "circulating_supply_wow_pct": wow_pct("circulating_supply"),
@@ -126,6 +126,13 @@ def build_summary(panel):
         "holders_ge1000000": int(last.get("n_ge_1m", 0)),
         "total_participants": int(panel["new_addresses"].sum()),
     }
+    # DEXハブ除外版(dex_hub_addresses.csvがあるスコープのみ列が存在する)。
+    # ダッシュボードのスナップショット欄で「無印(括弧内: DEXハブ除く)」と補足表示するため。
+    if "circulating_supply_ex_hub" in panel.columns:
+        summary["circulating_supply_ex_hub"] = float(last["circulating_supply_ex_hub"])
+    if "holders_gt0_ex_hub" in panel.columns:
+        summary["holders_gt0_ex_hub"] = int(last["holders_gt0_ex_hub"])
+    return summary
 
 
 # ---------------------------------------------------------------- core build

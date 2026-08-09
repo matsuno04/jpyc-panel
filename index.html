@@ -219,6 +219,11 @@ function wowHtml(pct) {
   return `<span class="sub ${cls}">先週比: ${sign}${v.toFixed(1)}%</span>`;
 }
 
+function exHubHtml(value, fmtFn) {
+  if (value === null || value === undefined) return "";
+  return `<div class="sub" style="color:var(--muted)">DEXハブ除く: ${fmtFn(value)}</div>`;
+}
+
 function statTile(label, value, sub, title) {
   return `<div class="stat" title="${title || ""}">
     <div class="label">${label}</div>
@@ -261,12 +266,14 @@ async function render(scope) {
     asofEl.textContent = `最終データ日: ${s.date}`;
 
     statsEl.innerHTML = [
-      statTile("流通量", fmtYen(s.circulating_supply), wowHtml(s.circulating_supply_wow_pct),
-                "今、実際に出回っているJPYCの総量(発行量−償還量)"),
+      statTile("流通量", fmtYen(s.circulating_supply),
+                wowHtml(s.circulating_supply_wow_pct) + exHubHtml(s.circulating_supply_ex_hub, fmtYen),
+                "今、実際に出回っているJPYCの総量(発行量−償還量)。「DEXハブ除く」はDEXルーター/プール等(取引の中継点、実ユーザーではない)自体の保有分を除いた値"),
       statTile("累計発行量", fmtYen(s.cumulative_mint_volume), "",
                 "これまでに発行されたJPYCの合計額(償還分を含む)"),
-      statTile("ホルダー数 (>0円)", fmtInt(s.holders_gt0), wowHtml(s.holders_gt0_wow_pct),
-                "1円でもJPYCを持っているアドレスの数"),
+      statTile("ホルダー数 (>0円)", fmtInt(s.holders_gt0),
+                wowHtml(s.holders_gt0_wow_pct) + exHubHtml(s.holders_gt0_ex_hub, fmtInt),
+                "1円でもJPYCを持っているアドレスの数。「DEXハブ除く」はDEXルーター/プール等自体を除いた実ユーザー数"),
       statTile("うち >=100円", fmtInt(s.holders_ge100), "", "残高100円以上のアドレス数(ごく少額のダストを除く)"),
       statTile("うち >=1,000円", fmtInt(s.holders_ge1000), "", "残高1,000円以上のアドレス数"),
       statTile("うち >=1万円", fmtInt(s.holders_ge10000), "", "残高1万円以上のアドレス数"),

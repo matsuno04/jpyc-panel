@@ -9,5 +9,7 @@
  "holders_ge1000": 2276,
  "holders_ge10000": 780,
  "holders_ge1000000": 21,
- "total_participants": 74075
+ "total_participants": 74075,
+ "circulating_supply_ex_hub": 81769654.45669466,
+ "holders_gt0_ex_hub": 23374
 }
