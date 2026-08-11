@@ -1,15 +1,15 @@
 {
- "date": "2026-08-11",
- "circulating_supply": 625512840.3675673,
- "circulating_supply_wow_pct": 0.05525684204928408,
+ "date": "2026-08-12",
+ "circulating_supply": 622594823.59051,
+ "circulating_supply_wow_pct": 0.018427693294886832,
  "cumulative_mint_volume": 4390000000.0,
- "holders_gt0": 40023,
- "holders_gt0_wow_pct": 0.006361579079708322,
- "holders_ge100": 28451,
- "holders_ge1000": 4393,
- "holders_ge10000": 1442,
- "holders_ge1000000": 68,
- "total_participants": 68709,
- "circulating_supply_ex_hub": 433232939.8842869,
- "holders_gt0_ex_hub": 39990
+ "holders_gt0": 40043,
+ "holders_gt0_wow_pct": 0.0031565498409199086,
+ "holders_ge100": 28447,
+ "holders_ge1000": 4409,
+ "holders_ge10000": 1455,
+ "holders_ge1000000": 64,
+ "total_participants": 68753,
+ "circulating_supply_ex_hub": 427688265.7763884,
+ "holders_gt0_ex_hub": 40010
 }
