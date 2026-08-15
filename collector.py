@@ -325,7 +325,9 @@ def collect_chain_etherscan(chain, api_key):
         n_events_total += len(range_logs)
         ok_streak += 1
         if ok_streak >= 4:
-            chunk = min(int(chunk * 1.5), 500_000)
+            # int(chunk * 1.5)はchunk=1のとき1のまま(切り捨て)で成長が止まってしまうため、
+            # 最低+1の成長を保証する(密集区間でchunk=1に落ちた後、抜けられなくなるバグの修正)。
+            chunk = min(max(chunk + 1, int(chunk * 1.5)), 500_000)
             ok_streak = 0
 
         frm = to + 1
