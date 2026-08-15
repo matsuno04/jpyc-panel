@@ -9,7 +9,7 @@ panel_builder.py — 生イベント(parquet)から研究用データセット�
 入力:  data/events_{chain}.parquet, data/meta_{chain}.json, known_addresses.csv(任意)
 出力(output/):
     daily_panel_{scope}.csv        … 日次パネル(本体)
-    address_master_{scope}.csv     … アドレス台帳(first_seen, 累計入出金, 相手数, フラグ)
+    address_master_{scope}.csv     … アドレス台帳(first_seen/first_seen_event, 累計入出金, 相手数, フラグ)
     cohort_retention_{scope}.csv   … 獲得週コホート × 経過週 の保有継続率
     balances_latest_{scope}.csv    … 最新残高スナップショット
     flag_candidates_{scope}.csv    … CEX/運営アドレス候補(手動ラベリング用)
@@ -147,10 +147,13 @@ def build(scope_name, ev, decimals, exclude, reviewed=frozenset(), dex_hub=froze
     hub_excl = exclude | dex_hub
 
     balances = {}       # address -> int 残高(最小単位)
-    first_seen = {}     # address -> date (初めて残高>0になった日)
+    first_seen = {}     # address -> date (A案: その日の最終残高が初めて>0になった日)
+    first_seen_event = {}  # address -> date (B案: 受信イベント直後の残高が初めて>0になった瞬間の日。
+                            # 同日内に受信→送信して日末残高が相殺されるアドレスも捕捉できる)
     first_week = {}     # address -> 獲得週 (ISO週の月曜日)
     last_active = {}
     ever_seen = set()
+    ever_seen_event = set()
 
     daily_rows = []
     cohort_rows = []    # (week_observed, cohort_week, still_holding, cohort_size)
@@ -208,6 +211,12 @@ def build(scope_name, ev, decimals, exclude, reviewed=frozenset(), dex_hub=froze
                     receivers.add(to)
                 if to not in hub_excl:
                     receivers_ex.add(to)
+                # B案(イベント単位): この受信イベント直後の残高で判定。日末を待たないため、
+                # 同日内に受信→送信して日末残高が相殺されるアドレスも初回受信として捕捉する。
+                if (to not in exclude and to not in ever_seen_event
+                        and balances[to] > 0):
+                    ever_seen_event.add(to)
+                    first_seen_event[to] = d
 
             if is_mint:
                 n_mint += 1; v_mint += v
@@ -348,6 +357,31 @@ def build(scope_name, ev, decimals, exclude, reviewed=frozenset(), dex_hub=froze
     # ---------------------------------------------------------------- 出力
     os.makedirs(OUT_DIR, exist_ok=True)
     panel = pd.DataFrame(daily_rows)
+
+    # --- 累積ユニークアドレス数(cumulative_adopters) ---
+    # first_seen(address_master_{scope}.csvのfirst_seen列と同じ値、exclude/ZERO_ADDRESSは
+    # 上のループで既に除外済み)を日付ごとに集計しcumsum。reindex+ffillにより、
+    # パネルの日付範囲より前のfirst_seenがあればその分は初期値に繰り込まれ、
+    # 新規adopterがいない日は前日の値を維持する(単調増加、combinedはチェーン横断で
+    # アドレス単位に自然に重複排除済み)。
+    def cumulative_series(fs_items):
+        dates_only = [d for _, d in fs_items]
+        if not dates_only:
+            return pd.Series(0, index=panel["date"])
+        daily_new = pd.Series(dates_only).value_counts().sort_index().cumsum()
+        return daily_new.reindex(panel["date"], method="ffill").fillna(0).astype(int)
+
+    panel["cumulative_adopters"] = cumulative_series(first_seen.items()).values
+    panel["cumulative_adopters_ex_hub"] = cumulative_series(
+        (a, d) for a, d in first_seen.items() if a not in dex_hub
+    ).values
+    # B案(イベント単位、first_seen_event)側の累積系列。同日内相殺で日末スナップショット
+    # (A案)からは捕捉されないアドレスも含む。既存のcumulative_adopters系列は変更しない。
+    panel["cumulative_adopters_event"] = cumulative_series(first_seen_event.items()).values
+    panel["cumulative_adopters_event_ex_hub"] = cumulative_series(
+        (a, d) for a, d in first_seen_event.items() if a not in dex_hub
+    ).values
+
     panel.to_csv(os.path.join(OUT_DIR, f"daily_panel_{scope_name}.csv"), index=False)
 
     with open(os.path.join(OUT_DIR, f"summary_{scope_name}.json"), "w",
@@ -369,6 +403,7 @@ def build(scope_name, ev, decimals, exclude, reviewed=frozenset(), dex_hub=froze
     master = pd.DataFrame({
         "address": addrs,
         "first_seen": [first_seen.get(a) for a in addrs],
+        "first_seen_event": [first_seen_event.get(a) for a in addrs],
         "last_active": [last_active.get(a) for a in addrs],
         "balance": [balances.get(a, 0) / unit_f for a in addrs],
         "total_in": [agg_in.get(a, 0) / unit_f for a in addrs],
