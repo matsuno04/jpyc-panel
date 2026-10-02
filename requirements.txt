@@ -4,3 +4,4 @@ numpy
 requests
 scipy
 matplotlib
+statsmodels
