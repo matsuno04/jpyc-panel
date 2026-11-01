@@ -72,10 +72,14 @@ class Rpc:
         return self.call("eth_getCode", [address, hex(block)])
 
     def block_timestamp(self, block):
-        b = self.call("eth_getBlockByNumber", [hex(block), False])
-        if b is None:
-            raise RpcError(f"block {block} not found")
-        return int(b["timestamp"], 16)
+        # 一部のパブリックRPC(publicnode等)は古いブロックを刈り込んでおり null を返す。
+        # null のときは他のエンドポイントも順に試してから諦める。
+        for _ in range(len(self.endpoints)):
+            b = self.call("eth_getBlockByNumber", [hex(block), False])
+            if b is not None:
+                return int(b["timestamp"], 16)
+            self.i += 1
+        raise RpcError(f"block {block} not found on any endpoint")
 
     def get_logs(self, address, topic0, from_block, to_block):
         return self.call("eth_getLogs", [{
