@@ -73,13 +73,36 @@ class Rpc:
 
     def block_timestamp(self, block):
         # 一部のパブリックRPC(publicnode等)は古いブロックを刈り込んでおり null を返す。
-        # null のときは他のエンドポイントも順に試してから諦める。
-        for _ in range(len(self.endpoints)):
-            b = self.call("eth_getBlockByNumber", [hex(block), False])
-            if b is not None:
+        # call() の切替に任せると刈り込み済みノードに戻ってしまうので、ここでは
+        # エンドポイントを直接回し、null を返したノードは以後避ける(全滅したらリセット)。
+        self._id += 1
+        payload = {"jsonrpc": "2.0", "id": self._id,
+                   "method": "eth_getBlockByNumber", "params": [hex(block), False]}
+        pruned = getattr(self, "_pruned", set())
+        self._pruned = pruned
+        last_err = None
+        for attempt in range(self.max_retries):
+            usable = [u for u in self.endpoints if u not in pruned]
+            if not usable:
+                pruned.clear()
+                usable = list(self.endpoints)
+            for url in usable:
+                try:
+                    res = self._post(url, payload)
+                except Exception as e:
+                    last_err = e
+                    continue
+                if res.get("error"):
+                    last_err = res["error"]
+                    continue
+                b = res.get("result")
+                if b is None:
+                    pruned.add(url)
+                    last_err = f"null from {url}"
+                    continue
                 return int(b["timestamp"], 16)
-            self.i += 1
-        raise RpcError(f"block {block} not found on any endpoint")
+            time.sleep(min(1.5 * (attempt + 1), 8) + random.random())
+        raise RpcError(f"block {block} not found on any endpoint: {last_err}")
 
     def get_logs(self, address, topic0, from_block, to_block):
         return self.call("eth_getLogs", [{
